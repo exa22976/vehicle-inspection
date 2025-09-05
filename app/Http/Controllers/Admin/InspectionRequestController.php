@@ -37,30 +37,25 @@ class InspectionRequestController extends Controller
                 'inspection_pattern_id' => $validated['inspection_pattern_id'],
                 'remarks' => $validated['remarks'],
                 'target_week_start' => $validated['target_week_start'],
+                'status' => 'scheduled', // 状態を'scheduled' (予約中)として保存
             ]);
 
             foreach ($vehicles as $vehicle) {
-                $record = $inspectionRequest->records()->create([
+                $inspectionRequest->records()->create([
                     'vehicle_id' => $vehicle->id,
                     'status' => '依頼中',
                     'one_time_token' => Str::random(40),
-                    'token_expires_at' => Carbon::parse($validated['target_week_start'])->addDays(7),
+                    'token_expires_at' => Carbon::parse($validated['target_week_start'])->addDays(14),
                 ]);
-
-                foreach ($vehicle->users as $user) {
-                    if ($user->email) {
-                        Mail::to($user->email)->send(new InspectionRequestMail($user, $vehicle, $record, $inspectionRequest));
-                    }
-                }
             }
 
             DB::commit();
             return redirect()->route('admin.dashboard', ['week' => $validated['target_week_start']])
-                ->with('success', '点検依頼を作成しました。');
+                ->with('success', '点検依頼を予約しました。');
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('点検依頼作成エラー: ' . $e->getMessage());
-            return redirect()->back()->with('error', '点検依頼の作成中に予期せぬエラーが発生しました。');
+            \Log::error('点検依頼予約エラー: ' . $e->getMessage());
+            return redirect()->back()->with('error', '点検依頼の予約中に予期せぬエラーが発生しました。');
         }
     }
 

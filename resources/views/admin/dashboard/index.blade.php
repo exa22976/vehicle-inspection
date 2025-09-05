@@ -6,6 +6,28 @@ use Illuminate\Support\Carbon;
 
 @section('content')
 <div class="container mx-auto px-4">
+    @if (session('success'))
+    <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4" role="alert">
+        <p>{{ session('success') }}</p>
+    </div>
+    @endif
+
+    @if (session('error'))
+    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+        <p>{{ session('error') }}</p>
+    </div>
+    @endif
+
+    @if ($errors->any())
+    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+        <p class="font-bold">入力内容にエラーがありました。</p>
+        <ul class="list-disc ml-5">
+            @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
     <h2 class="text-2xl font-bold mb-4">週次点検履歴</h2>
 
     <!-- 週ナビゲーション -->
@@ -48,13 +70,19 @@ use Illuminate\Support\Carbon;
     <div class="bg-white p-6 rounded-lg shadow">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-bold">点検状況 ({{ $inspectionRequest->pattern->name }})</h3>
-            <form action="{{ route('admin.inspection-requests.destroy', $inspectionRequest) }}" method="POST" onsubmit="return confirm('この週の点検依頼とすべての点検記録を完全に削除します。よろしいですか？');">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-3 rounded text-sm">
-                    この週の依頼を削除
-                </button>
-            </form>
+
+            <div class="flex items-center space-x-3">
+                <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d')]) }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-sm">
+                    更新
+                </a>
+                <form action="{{ route('admin.inspection-requests.destroy', $inspectionRequest) }}" method="POST" onsubmit="return confirm('この週の点検依頼とすべての点検記録を完全に削除します。よろしいですか？');" class="m-0">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-3 rounded text-sm">
+                        この週の依頼を削除
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -68,7 +96,37 @@ use Illuminate\Support\Carbon;
                             <x-sort-link column="user.name" label="担当者" />
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <x-sort-link column="status" label="ステータス" />
+                            <div x-data="{ open: false }" @click.away="open = false" class="relative">
+                                <button @click="open = !open" class="flex items-center space-x-1 focus:outline-none">
+                                    <span>ステータス</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+
+                                    @if($filterStatus)
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                                    </svg>
+                                    @endif
+                                </button>
+
+                                {{-- ドロップダウンリスト本体 --}}
+                                <div x-show="open"
+                                    x-transition
+                                    class="absolute z-10 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5"
+                                    style="display: none;">
+                                    <div class="py-1" role="menu" aria-orientation="vertical">
+                                        <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d')]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                            すべて表示
+                                        </a>
+                                        @foreach($statuses as $status)
+                                        <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d'), 'status' => $status]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ $filterStatus === $status ? 'font-bold' : '' }}" role="menuitem">
+                                            {{ $status }}
+                                        </a>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <x-sort-link column="result" label="結果" />
@@ -215,7 +273,7 @@ use Illuminate\Support\Carbon;
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        依頼を作成
+                        依頼を送信
                     </button>
                     <button type="button" onclick="document.getElementById('requestModal').classList.add('hidden')" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">
                         キャンセル

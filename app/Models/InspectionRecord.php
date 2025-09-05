@@ -62,4 +62,9 @@ class InspectionRecord extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function inspectionRequest()
+    {
+        return $this->belongsTo(InspectionRequest::class);
+    }
 }

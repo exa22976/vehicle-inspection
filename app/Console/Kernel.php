@@ -2,28 +2,43 @@
 
 namespace App\Console;
 
+use App\Console\Commands\SendScheduledInspections;
+use App\Console\Commands\SendWeeklyReport; // ★★★★★ 今回追加したコマンドを読み込み ★★★★★
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
     /**
-     * Define the application's command schedule.
+     * The Artisan commands provided by your application.
      *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
-     * @return void
+     * @var array
      */
-    protected function schedule(Schedule $schedule)
+    protected $commands = [
+        SendScheduledInspections::class,
+        SendWeeklyReport::class, // ★★★★★ 今回追加したコマンドを登録 ★★★★★
+    ];
+
+    /**
+     * Define the application's command schedule.
+     */
+    protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('inspections:send-scheduled')->dailyAt('08:00');
+        // 点検依頼メールを毎週月曜8時に送信
+        $schedule->command('inspections:send-scheduled')
+            ->mondays()
+            ->at('08:00');
+
+        // ★★★★★ 週次レポートを毎週月曜9時に送信するスケジュールを追加 ★★★★★
+        $schedule->command('inspections:send-weekly-report')
+            ->mondays()
+            ->at('09:00');
     }
 
     /**
      * Register the commands for the application.
-     *
-     * @return void
      */
-    protected function commands()
+    protected function commands(): void
     {
         $this->load(__DIR__ . '/Commands');
 

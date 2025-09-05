@@ -1,32 +1,41 @@
-<!-- resources/views/auth/login.blade.php -->
-<!DOCTYPE html>
-<html lang="ja">
+@extends('layouts.app')
 
-<head>
-    <meta charset="UTF-8">
-    <title>ログイン</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
+@section('content')
+<div class="container mx-auto">
+    <div class="flex justify-center px-6 my-12">
+        <div class="w-full xl:w-3/4 lg:w-11/12 flex justify-center">
+            <div class="w-full lg:w-7/12 bg-white p-5 rounded-lg lg:rounded-l-none shadow-xl">
+                <h3 class="pt-4 text-2xl text-center font-bold">管理者ログイン</h3>
+                <form class="px-8 pt-6 pb-8 mb-4 bg-white rounded" method="POST" action="{{ route('login') }}">
+                    @csrf
 
-<body class="bg-gray-100">
-    <div class="flex flex-col items-center justify-center min-h-screen p-4">
-        <div class="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-lg">
-            <h1 class="text-2xl font-bold text-center text-gray-800">車両点検管理システム</h1>
-            <form method="POST" action="{{ route('login') }}">
-                @csrf
-                <div>
-                    <label for="email" class="sr-only">メールアドレス</label>
-                    <input type="email" name="email" id="email" class="w-full px-4 py-3 text-lg border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="メールアドレス" required autofocus>
-                    @error('email')
-                    <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-                <div>
-                    <button type="submit" class="w-full px-4 py-3 font-semibold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700">ログイン</button>
-                </div>
-            </form>
+                    <div class="mb-4">
+                        <label class="block mb-2 text-sm font-bold text-gray-700" for="email">
+                            メールアドレス
+                        </label>
+                        <input
+                            class="w-full px-3 py-2 text-sm leading-tight text-gray-700 border rounded shadow appearance-none focus:outline-none focus:shadow-outline @error('email') border-red-500 @enderror"
+                            id="email"
+                            type="email"
+                            placeholder="email@example.com"
+                            name="email"
+                            value="{{ old('email') }}"
+                            required
+                            autofocus />
+                        @error('email')
+                        <p class="text-xs italic text-red-500 mt-2">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+
+                    <div class="mb-6 text-center">
+                        <button class="w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-full hover:bg-blue-700 focus:outline-none focus:shadow-outline" type="submit">
+                            ログイン
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</body>
-
-</html>
+</div>
+@endsection

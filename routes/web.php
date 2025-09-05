@@ -15,12 +15,17 @@ use App\Http\Controllers\Admin\InspectionRecordController;
 use App\Http\Controllers\InspectionController;
 
 // Auth Routes
-Route::get('/', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/', [LoginController::class, 'login']);
+Route::get('/', function () {
+    return redirect()->route('login');
+});
+
+// Auth Routes
+Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Admin Routes
-Route::prefix('admin')->name('admin.')->group(function () { //Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () 後差し替え
+Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () {
     // Dashboard & Inspection Requests
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/inspection-requests', [InspectionRequestController::class, 'store'])->name('inspection-requests.store');
@@ -53,3 +58,5 @@ Route::prefix('admin')->name('admin.')->group(function () { //Route::prefix('adm
 // Public Inspection Form Route
 Route::get('/inspection/{token}', [InspectionController::class, 'showForm'])->name('inspection.form');
 Route::post('/inspection/{token}', [InspectionController::class, 'submitForm'])->name('inspection.submit');
+
+Route::get('/test-db-connection', [App\Http\Controllers\Admin\VehicleController::class, 'testDatabaseConnection']);

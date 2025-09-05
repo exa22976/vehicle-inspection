@@ -18,7 +18,12 @@
             <form action="{{ route('inspection.submit', ['token' => $record->one_time_token]) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="p-4 bg-gray-50 rounded-lg mb-4">
-                    <h2 class="text-lg font-bold text-gray-900">対象: {{ $vehicle->model_name }}</h2>
+                    <h2 class="text-lg font-bold text-gray-900">
+                        対象: {{ $vehicle->model_name }}
+                        @if($vehicle->asset_number)
+                        <span class="text-base font-medium text-gray-500 ml-2">({{ $vehicle->asset_number }})</span>
+                        @endif
+                    </h2>
                     @if ($inspectionRequest->remarks)
                     <div class="mt-2 p-3 bg-yellow-100 text-yellow-800 rounded-md text-sm">
                         <p class="font-semibold">管理者からの申し送り事項:</p>
@@ -27,9 +32,28 @@
                     @endif
                 </div>
 
+                {{-- ★★★★★ ここから担当者選択のロジックを修正 ★★★★★ --}}
+                @if ($assignedUsers->count() > 1)
+                <div class="mb-4">
+                    <label for="user_id" class="block text-sm font-medium text-gray-700">入力者<span class="text-red-500">*</span></label>
+                    <select id="user_id" name="user_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">ご自身の名前を選択してください</option>
+                        @foreach ($assignedUsers as $user)
+                        <option value="{{ $user->id }}" @if(old('user_id')==$user->id) selected @endif>{{ $user->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
+                {{-- ★★★★★ ここまで修正 ★★★★★ --}}
+
                 @if ($errors->any())
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
                     <ul>@foreach ($errors->all() as $error) <li>{{ $error }}</li> @endforeach</ul>
+                </div>
+                @endif
+                @if (session('error'))
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                    <p>{{ session('error') }}</p>
                 </div>
                 @endif
 
@@ -47,7 +71,7 @@
                             <button type="button" @click="result = '異常'" :class="result === '異常' ? 'bg-red-500 text-white' : 'bg-gray-50'" class="flex-1 py-2 px-4 text-sm font-medium rounded-r-md border border-gray-300">異常</button>
                         </div>
                         <div x-show="result === '要確認' || result === '異常'" class="pt-4 mt-4 border-t space-y-4">
-                            <label class="text-sm font-medium text-gray-700">コメント</label>
+                            <label class="text-sm font-medium text-gray-700">状況報告</label>
                             <textarea name="results[{{ $item->id }}][comment]" rows="3" class="w-full border border-gray-300 rounded-md shadow-sm sm:text-sm">{{ old('results.'.$item->id.'.comment') }}</textarea>
                             <label class="text-sm font-medium text-gray-700">写真添付</label>
                             <input type="file" name="results[{{ $item->id }}][photo]" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
@@ -57,7 +81,11 @@
                 </div>
 
                 <div class="pt-6">
-                    <button type="submit" class="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700">点検報告</button>
+                    <button type="submit"
+                        @if($assignedUsers->isEmpty()) disabled @endif
+                        class="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        点検報告
+                    </button>
                 </div>
             </form>
         </main>

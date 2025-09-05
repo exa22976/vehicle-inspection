@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
@@ -10,7 +11,26 @@ use App\Models\User;
 class LoginController extends Controller
 {
     /**
-     * ログイン画面を表示
+     * Where to redirect users after login.
+     *
+     * @var string
+     */
+    protected $redirectTo = RouteServiceProvider::HOME;
+
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('guest')->except('logout');
+    }
+
+    /**
+     * Display the login form.
+     *
+     * @return \Illuminate\View\View
      */
     public function showLoginForm()
     {
@@ -18,42 +38,43 @@ class LoginController extends Controller
     }
 
     /**
-     * ログイン処理
+     * Handle a login request to the application.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function login(Request $request)
     {
-        // ★★★★★ トラブルシューティング用コード ★★★★★
-        // ログインボタンが押されたら、まずこのメッセージが表示されるかを確認します。
-        // この画面が表示されたら、その旨を教えてください。
-        dd('LoginControllerのloginメソッドが実行されました。');
-        // ★★★★★ ここまで ★★★★★
-
-
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
+        $request->validate([
+            'email' => 'required|email',
         ]);
 
-        $user = User::where('email', $credentials['email'])->where('is_admin', true)->first();
+        $user = User::where('email', $request->email)->first();
 
-        if ($user) {
+        if ($user && $user->is_admin) {
             Auth::login($user);
             $request->session()->regenerate();
-            return redirect()->intended(route('admin.dashboard'));
+            return redirect()->intended($this->redirectTo);
         }
 
         return back()->withErrors([
-            'email' => '指定されたメールアドレスは管理者として登録されていません。',
+            'email' => '入力されたメールアドレスは管理者として登録されていません。',
         ])->onlyInput('email');
     }
 
     /**
-     * ログアウト処理
+     * Log the user out of the application.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function logout(Request $request)
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect('/');
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 use App\Exports\UserExport;
 use App\Imports\UserImport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -53,21 +54,27 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email',
+            'email' => 'required|string|email|max:255',
+            'department_id' => 'required|string',
+            'new_department' => 'nullable|string|max:255|required_if:department_id,new',
             'is_admin' => 'required|boolean',
-            'department_id' => 'required_without:new_department|nullable|exists:departments,id',
-            'new_department' => 'required_without:department_id|nullable|string|max:255|unique:departments,name',
         ]);
 
-        if (!empty($validated['new_department'])) {
+        $departmentId = $validated['department_id'];
+        if ($departmentId === 'new') {
             $department = Department::create(['name' => $validated['new_department']]);
-            $validated['department_id'] = $department->id;
+            $departmentId = $department->id;
         }
 
-        // パスワードは使いませんが必須項目のためダミーを設定
-        $validated['password'] = Hash::make(str()->random(10));
+        $password = Str::random(12);
 
-        User::create($validated);
+        User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'department_id' => $departmentId,
+            'is_admin' => $validated['is_admin'],
+            'password' => Hash::make($password),
+        ]);
 
         return redirect()->route('admin.users.index')->with('success', '担当者を登録しました。');
     }
@@ -99,26 +106,40 @@ class UserController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  \App\Models\User  $user
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'required|string|email|max:255',
+            'department_id' => ['required', 'string', Rule::notIn(['existing'])], // Rule::notIn を使用
+            'new_department' => 'nullable|string|max:255|required_if:department_id,new',
             'is_admin' => 'required|boolean',
-            'department_id' => 'required_without:new_department|nullable|exists:departments,id',
-            'new_department' => 'required_without:department_id|nullable|string|max:255|unique:departments,name',
+            'password' => 'nullable|string|min:8|confirmed',
+        ], [
+            'department_id.not_in' => '所属部署を選択してください。',
         ]);
 
-        // 新しい部署が入力された場合
-        if (!empty($validated['new_department'])) {
+        $departmentId = $validated['department_id'];
+        if ($departmentId === 'new') {
             $department = Department::create(['name' => $validated['new_department']]);
-            $validated['department_id'] = $department->id;
+            $departmentId = $department->id;
         }
 
-        $user->update($validated);
+        $updateData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'department_id' => $departmentId,
+            'is_admin' => $validated['is_admin'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $updateData['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($updateData);
 
         return redirect()->route('admin.users.index')->with('success', '担当者情報を更新しました。');
     }

@@ -53,15 +53,29 @@ class InspectionRecordController extends Controller
      */
     public function updateStatus(Request $request, InspectionRecord $inspectionRecord)
     {
-        $request->validate(['issue_status' => 'required|string|in:対応中,対応済み']);
+        // ★★★★★ ここからメソッド全体を修正 ★★★★★
+        $validated = $request->validate([
+            'issue_status' => 'required|string|in:未対応,対応済み',
+            'resolved_at' => 'nullable|date',
+            'admin_comment' => 'nullable|string|max:1000', // 管理者コメントのバリデーションを追加
+        ]);
 
-        $inspectionRecord->issue_status = $request->issue_status;
-        if ($request->issue_status === '対応済み') {
-            $inspectionRecord->resolved_at = now();
+        // 点検記録本体（対応状況と完了日）を更新
+        $inspectionRecord->update([
+            'issue_status' => $validated['issue_status'],
+            'resolved_at' => $validated['resolved_at'],
+        ]);
+
+        // 管理者コメントが入力されている場合のみ、admin_commentsテーブルに保存
+        if (!empty($validated['admin_comment'])) {
+            $inspectionRecord->adminComments()->create([
+                'user_id' => Auth::id(), // 現在ログインしている管理者のID
+                'comment' => $validated['admin_comment'],
+            ]);
         }
-        $inspectionRecord->save();
 
-        return back()->with('success', 'ステータスを更新しました。');
+        return redirect()->back()->with('success', '対応状況を更新しました。');
+        // ★★★★★ ここまでメソッド全体を修正 ★★★★★
     }
 
     /**

@@ -37,6 +37,6 @@ class InspectionRequestMail extends Mailable
     public function build()
     {
         return $this->subject('【' . config('app.name') . '】週次点検のお願い')
-            ->view('emails.inspection_request');
+            ->view('emails.inspection-request');
     }
 }
