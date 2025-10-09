@@ -182,7 +182,6 @@ use Illuminate\Support\Carbon;
                             <a href="{{ route('admin.records.show', $record) }}" class="text-indigo-600 hover:text-indigo-900">詳細</a>
                             <form action="{{ route('admin.records.reRequest', $record) }}" method="POST" class="inline-block ml-2" onsubmit="return confirm('この車両の再点検依頼をしますか？');">
                                 @csrf
-                                @method('PUT')
                                 <button type="submit" class="text-red-600 hover:text-red-900">再依頼</button>
                             </form>
                         </td>

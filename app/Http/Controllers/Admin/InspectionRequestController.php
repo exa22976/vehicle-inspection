@@ -67,4 +67,19 @@ class InspectionRequestController extends Controller
         return redirect()->route('admin.dashboard', ['week' => $targetWeek])
             ->with('success', '点検依頼を削除しました。');
     }
+
+    public function resend(InspectionRequest $inspectionRequest)
+    {
+        // 署名付きURLを生成
+        $url = URL::temporarySignedRoute(
+            'inspections.form',
+            now()->addHours(24),
+            ['token' => $inspectionRequest->token]
+        );
+
+        // メールを送信
+        Mail::to($inspectionRequest->user->email)->send(new InspectionRequestMail($url, $inspectionRequest));
+
+        return redirect()->route('admin.dashboard.index')->with('success', '点検依頼を再送しました。');
+    }
 }
