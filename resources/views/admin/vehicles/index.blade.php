@@ -118,7 +118,6 @@
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">名称</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">メーカー</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">種別</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">管理番号</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">カテゴリ</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">部署</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">担当者</th>
@@ -131,7 +130,6 @@
                             <td class="px-6 py-4 whitespace-nowrap">{{ $vehicle->model_name }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">{{ $vehicle->maker }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">{{ $vehicle->vehicle_type }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">{{ $vehicle->asset_number }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">{{ $vehicle->category ?? '-' }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 @php
@@ -159,7 +157,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500">該当する車両・重機が見つかりません。</td>
+                            <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500">該当する車両・重機が見つかりません。</td>
                         </tr>
                         @endforelse
                     </tbody>

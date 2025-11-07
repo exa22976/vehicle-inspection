@@ -5,20 +5,30 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\InspectionRecord;
 use App\Models\InspectionRecordDetail;
+use App\Models\User; // ★ User モデルを use
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log; // ★ Log を use
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule; // ★ Rule を use
 
 class InspectionController extends Controller
 {
     /**
-     * 点検フォームを表示する
+     * Display the inspection form.
      */
     public function showForm(string $token)
     {
-        $record = InspectionRecord::with('vehicle.users', 'inspectionRequest.pattern.items')->where('one_time_token', $token)->first();
+        // トークンに紐づく有効な点検記録を取得 (関連情報も Eager Load)
+        $record = InspectionRecord::with(['vehicle.users', 'inspectionRequest.pattern.items'])
+            ->where('one_time_token', $token)
+            ->whereNotNull('token_expires_at') // 期限が設定されている
+            ->where('token_expires_at', '>', now()) // 期限が切れていない
+            ->whereIn('status', ['依頼中', '再依頼']) // ステータスが依頼中または再依頼
+            ->first();
 
-        if (!$record || $record->token_expires_at < now() || !in_array($record->status, ['依頼中', '再依頼'])) {
+        // レコードが見つからない、または無効な場合
+        if (!$record) {
             return view('inspections.invalid');
         }
 
@@ -26,89 +36,141 @@ class InspectionController extends Controller
         $vehicle = $record->vehicle;
         $pattern = $inspectionRequest->pattern;
 
-        // ★★★★★ 担当者リストをビューに渡す ★★★★★
-        $assignedUsers = $record->vehicle->users;
+        // ★★★★★ 車両に割り当てられている担当者リストを取得 ★★★★★
+        $assignedUsers = $record->vehicle->users()->whereNull('deleted_at')->orderBy('name')->get();
 
-        // 点検項目を絞り込むロジック（ご提示いただいたコードをそのまま使用）
+        // 点検項目を取得 (カテゴリと表示順でソート)
+        // カテゴリ名が「(車両カテゴリ)共通」である項目のみを取得
         $items = $pattern->items()
             ->where('category', $vehicle->category . '共通')
-            ->orderBy('display_order')
+            ->orderBy('display_order') // display_order カラムでソート
             ->get();
 
-        return view('inspections.form', compact('record', 'inspectionRequest', 'vehicle', 'pattern', 'items', 'assignedUsers'));
+        // カテゴリごとに項目をグループ化 (ビューでの表示用)
+        $itemsGrouped = $items->groupBy('category');
+
+
+        return view('inspections.form', compact(
+            'record',
+            'inspectionRequest',
+            'vehicle',
+            'pattern',
+            'itemsGrouped', // ★★★★★ ここに itemsGrouped を追加 ★★★★★
+            'assignedUsers' // ★ ビューに担当者リストを渡す
+        ));
     }
 
     /**
-     * 点検フォームの報告を処理する
+     * Submit the inspection form.
      */
     public function submitForm(Request $request, string $token)
     {
-        $record = InspectionRecord::with('vehicle.users')->where('one_time_token', $token)->first();
+        // トークンに紐づく有効な点検記録を再取得
+        $record = InspectionRecord::where('one_time_token', $token)
+            ->whereNotNull('token_expires_at')
+            ->where('token_expires_at', '>', now())
+            ->whereIn('status', ['依頼中', '再依頼'])
+            ->first();
 
-        if (!$record || $record->token_expires_at < now() || !in_array($record->status, ['依頼中', '再依頼'])) {
-            return view('inspections.invalid');
+        // レコードが見つからない、または無効な場合
+        if (!$record) {
+            return redirect()->route('inspection.invalid')->with('error', 'この点検依頼は無効か、既に報告済み、または有効期限が切れています。');
         }
 
-        // ★★★★★ ここから担当者IDの決定ロジックとバリデーションを修正 ★★★★★
-        $assignedUsers = $record->vehicle->users;
-        $inspectorId = null;
+        $pattern = $record->inspectionRequest->pattern;
+        $items = $pattern->items()
+            ->where('category', $record->vehicle->category . '共通') // showForm と同じ条件で項目を取得
+            ->get();
 
-        // 基本のバリデーションルール
+        // --- バリデーション ---
         $rules = [
-            'results' => 'required|array',
-            'results.*.check_result' => 'required|in:正常,要確認,異常',
-            'results.*.comment' => 'nullable|string|max:1000',
-            'results.*.photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
+            'inspector_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->whereNull('deleted_at'),
+                Rule::exists('vehicle_user', 'user_id')->where('vehicle_id', $record->vehicle_id),
+            ],
+            // ★★★ 走行距離のバリデーションを削除 ★★★
+            // 'mileage' => 'nullable|integer|min:0',
+            'overall_remarks' => 'nullable|string|max:1000',
         ];
 
-        // 担当者が複数いる場合は、フォームからの選択を必須にする
-        if ($assignedUsers->count() > 1) {
-            $rules['user_id'] = 'required|exists:users,id';
+        $messages = [
+            'inspector_id.required' => '点検実施者を選択してください。',
+            'inspector_id.exists' => '選択された担当者が無効です。車両に割り当てられている担当者を選択してください。',
+        ];
+
+        // 各点検項目の入力に対するバリデーションルールとメッセージを追加
+        foreach ($items as $item) {
+            $rules['results.' . $item->id . '.check_result'] = 'required|in:正常,要確認,異常';
+            $rules['results.' . $item->id . '.comment'] = [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::requiredIf(function () use ($request, $item) {
+                    $result = $request->input('results.' . $item->id . '.check_result');
+                    return in_array($result, ['要確認', '異常']);
+                }),
+            ];
+            $rules['results.' . $item->id . '.photo'] = 'nullable|image|max:5120';
+
+            $messages['results.' . $item->id . '.check_result.required'] = $item->item_name . ' の結果を選択してください。';
+            $messages['results.' . $item->id . '.comment.required'] = $item->item_name . ' の結果が「要確認」または「異常」の場合、状況報告は必須です。';
+            $messages['results.' . $item->id . '.photo.image'] = $item->item_name . ' の添付ファイルは画像（jpg, png, gifなど）である必要があります。';
+            $messages['results.' . $item->id . '.photo.max'] = $item->item_name . ' の添付ファイルのサイズは5MB以下にしてください。';
         }
 
-        $validator = Validator::make($request->all(), $rules);
-        if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
-        }
-        $validatedData = $validator->validated();
+        // バリデーション実行
+        $validatedData = $request->validate($rules, $messages);
 
-        // 点検実施者のIDを決定
-        if ($assignedUsers->count() === 1) {
-            $inspectorId = $assignedUsers->first()->id;
-        } elseif ($assignedUsers->count() > 1) {
-            $inspectorId = $validatedData['user_id'];
-        } else {
-            return back()->with('error', 'この車両には点検を実施できる担当者が割り当てられていません。');
-        }
-        // ★★★★★ ここまで修正 ★★★★★
-
-        DB::beginTransaction();
+        // --- データベース処理 ---
         try {
+            DB::beginTransaction();
+
             $overallResult = '正常';
 
-            foreach ($validatedData['results'] as $itemId => $result) {
+            foreach ($items as $item) {
+                $itemResultData = $validatedData['results'][$item->id];
                 $photoPath = null;
-                if (isset($result['photo'])) {
-                    $photoPath = $result['photo']->store('photos', 'public');
+
+                if ($request->hasFile('results.' . $item->id . '.photo')) {
+                    $uploadedFile = $request->file('results.' . $item->id . '.photo');
+                    if ($uploadedFile && $uploadedFile->isValid()) {
+                        $directory = 'photos/' . now()->format('Y-m');
+                        $photoPath = $uploadedFile->store($directory, 'public');
+                        if (!$photoPath) {
+                            throw new \Exception("写真の保存に失敗しました ({$item->item_name})。ディスク容量や権限を確認してください。");
+                        }
+                    } else {
+                        Log::warning("Invalid photo uploaded for item ID {$item->id} in record ID {$record->id}.");
+                    }
                 }
 
-                InspectionRecordDetail::create([
-                    'inspection_record_id' => $record->id,
-                    'inspection_item_id' => $itemId,
-                    'check_result' => $result['check_result'],
-                    'comment' => $result['comment'] ?? null,
-                    'photo_path' => $photoPath,
-                ]);
+                InspectionRecordDetail::updateOrCreate(
+                    [
+                        'inspection_record_id' => $record->id,
+                        'inspection_item_id' => $item->id,
+                    ],
+                    [
+                        'check_result' => $itemResultData['check_result'],
+                        'comment' => $itemResultData['comment'] ?? null,
+                        'photo_path' => $photoPath,
+                    ]
+                );
 
-                if ($result['check_result'] === '異常') {
+                if ($itemResultData['check_result'] === '異常') {
                     $overallResult = '異常';
-                } elseif ($result['check_result'] === '要確認' && $overallResult !== '異常') {
+                } elseif ($itemResultData['check_result'] === '要確認' && $overallResult !== '異常') {
                     $overallResult = '要確認';
                 }
             }
 
+            // InspectionRecord を更新
             $record->update([
-                'user_id' => $inspectorId, // ★★★★★ 担当者IDを保存 ★★★★★
+                'user_id' => $validatedData['inspector_id'],
+                // ★★★ 走行距離の保存処理を削除 ★★★
+                // 'mileage' => $validatedData['mileage'] ?? null,
+                'remarks' => $validatedData['overall_remarks'] ?? null,
                 'status' => '点検済み',
                 'result' => $overallResult,
                 'inspected_at' => now(),
@@ -117,11 +179,38 @@ class InspectionController extends Controller
             ]);
 
             DB::commit();
+
+            return redirect()->route('inspection.complete');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', '報告処理中にエラーが発生しました。' . $e->getMessage())->withInput();
+            Log::error("Inspection submission failed for record ID {$record->id}: " . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            $errorMessage = '報告処理中に予期せぬエラーが発生しました。';
+            if (str_contains($e->getMessage(), '写真の保存に失敗')) {
+                $errorMessage .= '写真のアップロード処理で問題が発生した可能性があります。ファイルサイズや形式を確認してください。';
+            } else {
+                $errorMessage .= '時間を置いて再度お試しいただくか、管理者に連絡してください。';
+            }
+            return back()->with('error', $errorMessage)->withInput();
         }
+    }
 
+    /**
+     * Display the completion page.
+     */
+    public function complete()
+    {
         return view('inspections.complete');
+    }
+
+    /**
+     * Display the invalid token page.
+     */
+    public function invalid()
+    {
+        return view('inspections.invalid');
     }
 }

@@ -43,6 +43,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'is_admin' => 'boolean',
     ];
 
     public function vehicles()
@@ -53,5 +54,20 @@ class User extends Authenticatable
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleted(function ($user) {
+            if ($departmentId = $user->department_id) {
+                $remainingUsersCount = User::where('department_id', $departmentId)->count();
+
+                if ($remainingUsersCount === 0) {
+                    Department::find($departmentId)?->delete();
+                }
+            }
+        });
     }
 }

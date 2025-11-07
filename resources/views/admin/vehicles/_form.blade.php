@@ -3,7 +3,6 @@
 $assignedUserIds = old('user_ids', $vehicle->users->pluck('id')->all());
 @endphp
 
-{{-- ★★★★★ Alpine.jsのセットアップ ★★★★★ --}}
 <div class="space-y-6" x-data="{
     selectedDepartment: 'all',
     allUsers: {{ Js::from($allUsersForFiltering) }},

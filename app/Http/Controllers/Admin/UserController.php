@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use App\Exports\UserExport;
 use App\Imports\UserImport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -22,20 +23,43 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $sortColumn = $request->get('sort', 'id');
-        $sortDirection = $request->get('direction', 'asc');
+        $query = User::query()->with('department', 'vehicles');
 
-        $allowedColumns = ['id', 'name', 'email'];
-        if (!in_array($sortColumn, $allowedColumns)) {
-            $sortColumn = 'id';
+        $filterDepartment = $request->input('department_id');
+        $keyword = $request->input('keyword');
+        $filterIsAdmin = $request->input('is_admin');
+
+        if ($keyword) {
+            $query->where(function ($q) use ($keyword) {
+                $q->where('name', 'like', "%{$keyword}%")
+                    ->orWhere('email', 'like', "%{$keyword}%");
+            });
         }
 
-        $users = User::with('department')
-            ->orderBy($sortColumn, $sortDirection)
-            ->paginate(10)
-            ->withQueryString();
+        if ($filterDepartment) {
+            $query->where('department_id', $filterDepartment);
+        }
 
-        return view('admin.users.index', compact('users'));
+        if ($filterIsAdmin !== null && $filterIsAdmin !== '') {
+            $query->where('is_admin', $filterIsAdmin);
+        }
+
+        $sort = $request->get('sort', 'name');
+        $direction = $request->get('direction', 'asc');
+
+        if ($sort === 'department_name') {
+            $query->select('users.*')
+                ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+                ->orderBy('departments.name', $direction);
+        } else {
+            $query->orderBy($sort, $direction);
+        }
+
+        $users = $query->get();
+
+        $departments = Department::orderBy('name')->get();
+
+        return view('admin.users.index', compact('users', 'departments', 'filterDepartment', 'keyword', 'filterIsAdmin'));
     }
 
     public function create()
@@ -167,12 +191,28 @@ class UserController extends Controller
 
     public function import(Request $request)
     {
-        $request->validate(['csv_file' => 'required|mimes:csv,txt']);
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt',
+        ]);
+
         try {
-            Excel::import(new UserImport, $request->file('csv_file'));
+            $file = $request->file('csv_file');
+
+            Excel::import(new UserImport, $file, \Maatwebsite\Excel\Excel::CSV);
+
+            return redirect()->route('admin.users.index')
+                ->with('success', 'CSVファイルのインポートが完了しました。');
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errors = [];
+            foreach ($failures as $failure) {
+                $errors[] = "{$failure->row()}行目: " . implode(', ', $failure->errors());
+            }
+            return redirect()->back()->with('error', 'CSVのバリデーションに失敗しました: ' . implode(' | ', $errors));
         } catch (\Exception $e) {
-            return back()->with('error', 'CSVインポートに失敗しました。ファイルの内容を確認してください。');
+            Log::error('CSV Import Error: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'CSVファイルのインポート中に予期せぬエラーが発生しました。ファイル形式や内容を確認してください。');
         }
-        return redirect()->route('admin.users.index')->with('success', 'CSVをインポートしました。');
     }
 }

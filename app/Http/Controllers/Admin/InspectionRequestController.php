@@ -72,7 +72,7 @@ class InspectionRequestController extends Controller
     {
         // 署名付きURLを生成
         $url = URL::temporarySignedRoute(
-            'inspections.form',
+            'inspection.form',
             now()->addHours(24),
             ['token' => $inspectionRequest->token]
         );

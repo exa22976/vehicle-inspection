@@ -1,4 +1,8 @@
 input {
-    border: solid 1.5px;
+    border: solid 1.5px #e5e7eb;
     font-size: 1.2em;
+}
+
+select {
+    border: solid 1px #e5e7eb;
 }

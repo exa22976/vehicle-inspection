@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\InspectionPatternController;
 use App\Http\Controllers\Admin\InspectionItemController;
 use App\Http\Controllers\Admin\InspectionRecordController;
+use App\Http\Controllers\Admin\DepartmentController;
 // Public
 use App\Http\Controllers\InspectionController;
 
@@ -28,8 +29,6 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () {
     // Dashboard & Inspection Requests
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::post('/inspection-requests', [InspectionRequestController::class, 'store'])->name('inspection-requests.store');
-
     Route::post('/inspection-requests', [InspectionRequestController::class, 'store'])->name('inspection-requests.store');
     Route::delete('/inspection-requests/{inspectionRequest}', [InspectionRequestController::class, 'destroy'])->name('inspection-requests.destroy');
 
@@ -49,6 +48,11 @@ Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () {
     Route::post('/users/import', [UserController::class, 'import'])->name('users.import');
     Route::resource('users', UserController::class)->except(['show']);
 
+    Route::get('/departments', [\App\Http\Controllers\Admin\DepartmentController::class, 'index'])->name('departments.index');
+    Route::post('/departments', [\App\Http\Controllers\Admin\DepartmentController::class, 'store'])->name('departments.store');
+    Route::put('/departments/{department}', [\App\Http\Controllers\Admin\DepartmentController::class, 'update'])->name('departments.update');
+    Route::delete('/departments/{department}', [\App\Http\Controllers\Admin\DepartmentController::class, 'destroy'])->name('departments.destroy');
+
     // -- Inspection Patterns (with nested Item routes)
     Route::resource('patterns', InspectionPatternController::class)->except(['show']);
     Route::resource('patterns.items', InspectionItemController::class)->only(['store'])->shallow();
@@ -58,5 +62,5 @@ Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () {
 // Public Inspection Form Route
 Route::get('/inspection/{token}', [InspectionController::class, 'showForm'])->name('inspection.form');
 Route::post('/inspection/{token}', [InspectionController::class, 'submitForm'])->name('inspection.submit');
-
-Route::get('/test-db-connection', [App\Http\Controllers\Admin\VehicleController::class, 'testDatabaseConnection']);
+Route::get('/inspection/complete', [\App\Http\Controllers\InspectionController::class, 'complete'])->name('inspection.complete');
+Route::get('/inspection/invalid', [\App\Http\Controllers\InspectionController::class, 'invalid'])->name('inspection.invalid');

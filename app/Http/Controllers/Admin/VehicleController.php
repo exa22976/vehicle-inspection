@@ -24,7 +24,6 @@ class VehicleController extends Controller
 
         $query = Vehicle::with('users.department');
 
-        // ★★★★★ ここからフィルターのロジックを修正しました ★★★★★
         if (!empty($filters['vehicle_type'])) {
             $query->whereIn('vehicle_type', $filters['vehicle_type']);
         }
@@ -34,7 +33,6 @@ class VehicleController extends Controller
         if (!empty($filters['category'])) {
             $query->whereIn('category', $filters['category']);
         }
-        // ★★★★★ ここまでフィルターのロジックを修正しました ★★★★★
 
         if (!empty($filters['department'])) {
             $query->whereHas('users', function ($q) use ($filters) {
@@ -149,7 +147,7 @@ class VehicleController extends Controller
         file_put_contents($temp_file_path, $utf8_content);
 
         try {
-            Excel::import(new VehicleImport, $temp_file_path);
+            Excel::import(new VehicleImport, $file, \Maatwebsite\Excel\Excel::CSV);
         } catch (ValidationException $e) {
             $failures = $e->failures();
             $errorMessages = [];
