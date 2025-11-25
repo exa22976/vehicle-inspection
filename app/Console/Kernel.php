@@ -28,11 +28,11 @@ class Kernel extends ConsoleKernel
         // 点検依頼メールを毎週月曜8時に送信
         $schedule->command('inspections:send-scheduled')
             ->mondays()
-            ->at('08:00');
+            ->at('10:00');
 
         $schedule->command('inspections:send-weekly-report')
             ->mondays()
-            ->at('09:00');
+            ->at('11:00');
     }
 
     /**
