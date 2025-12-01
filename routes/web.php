@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\DepartmentController;
 // Public
 use App\Http\Controllers\InspectionController;
 
+
+
 // Auth Routes
 Route::get('/', function () {
     return redirect()->route('login');
@@ -31,6 +33,7 @@ Route::prefix('admin')->middleware('auth')->name('admin.')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/inspection-requests', [InspectionRequestController::class, 'store'])->name('inspection-requests.store');
     Route::delete('/inspection-requests/{inspectionRequest}', [InspectionRequestController::class, 'destroy'])->name('inspection-requests.destroy');
+    Route::post('/inspection-requests/{inspectionRequest}/resend-pending', [InspectionRequestController::class, 'resendPending'])->name('inspection-requests.resendPending');
 
     // Inspection Records (Details & Re-request)
     Route::get('/records/{inspectionRecord}', [InspectionRecordController::class, 'show'])->name('records.show');

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InspectionRequestController extends Controller
 {
@@ -56,6 +57,62 @@ class InspectionRequestController extends Controller
             DB::rollBack();
             \Log::error('点検依頼予約エラー: ' . $e->getMessage());
             return redirect()->back()->with('error', '点検依頼の予約中に予期せぬエラーが発生しました。');
+        }
+    }
+
+    public function resendPending(InspectionRequest $inspectionRequest)
+    {
+        $targetRecords = $inspectionRequest->records()
+            ->where('status', '依頼中')
+            ->where('is_latest', true)
+            ->with('vehicle.users')
+            ->get();
+
+        if ($targetRecords->isEmpty()) {
+            return redirect()->back()->with('error', '再依頼の対象となる「依頼中」のデータがありません。');
+        }
+
+        $count = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($targetRecords as $record) {
+                $inspectionRequest->records()
+                    ->where('vehicle_id', $record->vehicle_id)
+                    ->update(['is_latest' => false]);
+
+                $newRecord = $inspectionRequest->records()->create([
+                    'vehicle_id' => $record->vehicle_id,
+                    'status' => '再依頼',
+                    'one_time_token' => Str::random(40),
+                    'token_expires_at' => Carbon::now()->addDays(7),
+                    'is_latest' => true,
+                ]);
+
+                $vehicle = $record->vehicle;
+                if ($vehicle && $vehicle->users->isNotEmpty()) {
+                    foreach ($vehicle->users as $user) {
+                        if ($user->email) {
+                            Mail::to($user->email)->send(new InspectionRequestMail(
+                                $user,
+                                $vehicle,
+                                $newRecord,
+                                $inspectionRequest
+                            ));
+                        }
+                    }
+                }
+                $count++;
+            }
+
+            DB::commit();
+
+            return redirect()->route('admin.dashboard', ['week' => $inspectionRequest->target_week_start])
+                ->with('success', $count . ' 件の未回答者へ再依頼メールを送信しました。');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('一括再依頼エラー: ' . $e->getMessage());
+            return redirect()->back()->with('error', '処理中にエラーが発生しました。');
         }
     }
 

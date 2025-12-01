@@ -19,17 +19,15 @@ class DashboardController extends Controller
         $prevWeek = $weekStartDate->copy()->subWeek()->format('Y-m-d');
         $nextWeek = $weekStartDate->copy()->addWeek()->format('Y-m-d');
 
-        // --- 絞り込み条件の取得 ---
         $filterStatus = $request->query('status');
-        // ★★★ 結果フィルターの値を取得 ★★★
         $filterResult = $request->query('result');
-        // ★★★ ここまで ★★★
+
 
         // その週の点検リクエストを取得 (関連情報も Eager Load)
         $inspectionRequest = InspectionRequest::with([
             'records' => function ($query) {
-                // Eager Load 時にも関連情報を読み込む
-                $query->with(['vehicle.users', 'user']);
+                $query->where('is_latest', true)
+                    ->with(['vehicle.users', 'user']);
             },
             'pattern'
         ])
@@ -55,8 +53,8 @@ class DashboardController extends Controller
 
         if ($inspectionRequest) {
             // 集計は絞り込み *前* の全レコードで行う
-            $allRecordsForStats = $inspectionRequest->records()->get(); // 関連レコードを全て取得
-
+            //$allRecordsForStats = $inspectionRequest->records()->get(); // 関連レコードを全て取得
+            $allRecordsForStats = $inspectionRequest->records()->where('is_latest', true)->get();
             $stats['total'] = $allRecordsForStats->count();
             $stats['completed'] = $allRecordsForStats->where('status', '点検済み')->count();
             if ($stats['total'] > 0) {

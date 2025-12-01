@@ -73,13 +73,19 @@ use Illuminate\Support\Carbon;
             <h3 class="text-lg font-semibold text-gray-700">点検状況 ({{ $inspectionRequest->pattern->name }})</h3> {{-- ★ text-xl を lg に --}}
 
             <div class="flex items-center space-x-3">
-                {{-- ★★★ 更新ボタンを元に戻す ★★★ --}}
+                <form action="{{ route('admin.inspection-requests.resendPending', $inspectionRequest) }}" method="POST" onsubmit="return confirm('ステータスが「依頼中」のすべての対象者に再依頼メールを送信します。\n本当によろしいですか？');" class="m-0">
+                    @csrf
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-orange-500 rounded-md shadow-sm hover:bg-orange-600 transition duration-150 ease-in-out flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        一括再依頼
+                    </button>
+                </form>
                 <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d')]) }}" class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">更新</a>
-                {{-- ★★★ ここまで ★★★ --}}
                 <form action="{{ route('admin.inspection-requests.destroy', $inspectionRequest) }}" method="POST" onsubmit="return confirm('この週の点検依頼とすべての点検記録を完全に削除します。よろしいですか？');" class="m-0">
                     @csrf
                     @method('DELETE')
-                    {{-- ★ ボタンのスタイル調整 --}}
                     <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-700">
                         この週の依頼を削除
                     </button>
@@ -90,6 +96,9 @@ use Illuminate\Support\Carbon;
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            管理番号
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {{-- ★ sort-link に絞り込みパラメータを渡す --}}
                             <x-sort-link column="vehicle.model_name" label="車両・重機" :params="['week' => $weekStartDate->format('Y-m-d'), 'status' => $filterStatus, 'result' => $filterResult]" />
@@ -139,22 +148,17 @@ use Illuminate\Support\Carbon;
                                 </div>
                                 <div x-show="open" x-transition class="origin-top-left absolute left-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10" style="display: none;">
                                     <div class="py-1" role="none">
-                                        {{-- ★ リセットリンクにステータスパラメータも追加 --}}
                                         <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d'), 'status' => $filterStatus]) }}" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem" tabindex="-1">すべて表示</a>
                                         @foreach($resultOptions as $result)
-                                        {{-- ★ リンクにステータスパラメータも追加 --}}
                                         <a href="{{ route('admin.dashboard', ['week' => $weekStartDate->format('Y-m-d'), 'status' => $filterStatus, 'result' => $result]) }}" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100 {{ $filterResult === $result ? 'font-bold bg-gray-100' : '' }}" role="menuitem" tabindex="-1">{{ $result }}</a>
                                         @endforeach
                                     </div>
                                 </div>
                             </div>
-                            {{-- ★ ソートリンク (結果列用) --}}
                             <x-sort-link column="result" label="" :params="['week' => $weekStartDate->format('Y-m-d'), 'status' => $filterStatus, 'result' => $filterResult]" />
                         </th>
-                        {{-- ★★★ ここまで ★★★ --}}
 
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{-- ★ sort-link に絞り込みパラメータを渡す --}}
                             <x-sort-link column="inspected_at" label="点検日時" :params="['week' => $weekStartDate->format('Y-m-d'), 'status' => $filterStatus, 'result' => $filterResult]" />
                         </th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">アクション</th>
@@ -163,6 +167,9 @@ use Illuminate\Support\Carbon;
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse ($sortedRecords as $record)
                     <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ optional($record->vehicle)->asset_number ?? '-' }}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ optional($record->vehicle)->model_name ?? '削除された車両' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->user->name ?? '未実施' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm"> {{-- ★ text-xs を sm に --}}
@@ -211,8 +218,7 @@ use Illuminate\Support\Carbon;
                     </tr>
                     @empty
                     <tr>
-                        {{-- ★ colspan を 7 に変更 --}}
-                        <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500">点検対象の車両がありません。</td>
+                        <td colspan="8" class="px-6 py-12 text-center text-sm text-gray-500">点検対象の車両がありません。</td>
                     </tr>
                     @endforelse
                 </tbody>
