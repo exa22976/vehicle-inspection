@@ -59,8 +59,14 @@ class VehicleController extends Controller
     {
         $departments = Department::with('users')->whereHas('users')->get();
         $usersWithoutDepartment = User::whereNull('department_id')->get();
+
+        // ★追加: ビューのフィルタリング機能で使用する全ユーザーリストを取得
+        $allUsersForFiltering = User::orderBy('name')->get(['id', 'name', 'department_id']);
+
         $vehicle = new Vehicle();
-        return view('admin.vehicles.create', compact('departments', 'usersWithoutDepartment', 'vehicle'));
+
+        // compactに 'allUsersForFiltering' を追加
+        return view('admin.vehicles.create', compact('departments', 'usersWithoutDepartment', 'vehicle', 'allUsersForFiltering'));
     }
 
     /**
